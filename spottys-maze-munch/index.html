@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Spotty's Maze Munch</title>
+<style>
+@font-face{font-family:'Fredoka';font-weight:300 700;font-display:swap;src:url(fonts/fredoka.woff2) format('woff2')}
+:root{--bg:#f3f6ee;--ink:#26301f;--muted:#6c7863;--accent:#e0534a;--panel:#fff;--line:#d9e1cf;--display:"Fredoka","Trebuchet MS",sans-serif}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--display);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none}
+button{font-family:var(--display);color:var(--ink);cursor:pointer;border:3px solid var(--line);background:var(--panel);border-radius:999px}
+[hidden]{display:none!important}
+.screen{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;padding:10px 12px}
+
+#start{justify-content:center;text-align:center}
+.logo{font-weight:700;font-size:56px;line-height:.95;margin:0}
+.logo span{display:block;color:var(--accent)}
+#startBug{width:180px;height:180px;margin:10px 0}
+.big{font-size:36px;font-weight:600;padding:14px 60px;background:var(--accent);border-color:var(--accent);color:#fff;margin:10px 0 6px}
+.big:active{transform:scale(.95)}
+.sub{color:var(--muted);font-size:18px;margin:4px 0;max-width:460px}
+.small{font-size:18px;padding:8px 20px;margin-top:12px}
+
+.top{width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.top button{font-size:18px;padding:6px 16px}
+.stat{font-size:20px;color:var(--muted)}
+.stat b{color:var(--ink)}
+#board{display:block;border-radius:16px;touch-action:none}
+.pad{display:grid;grid-template-columns:repeat(3,92px);grid-template-rows:repeat(3,92px);grid-gap:6px;margin-top:12px}
+.pad button{font-size:44px;border-radius:24px;padding:0;line-height:1;border-width:4px}
+.pad button:active,.pad button.on{background:#ffe1dd;border-color:var(--accent)}
+.pad .up{grid-column:2;grid-row:1}.pad .left{grid-column:1;grid-row:2}.pad .right{grid-column:3;grid-row:2}.pad .down{grid-column:2;grid-row:3}
+.pad .mid{grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--muted);text-align:center}
+.toast{position:fixed;left:50%;top:84px;transform:translateX(-50%);background:#26301fdd;color:#fff;padding:8px 18px;border-radius:999px;font-size:20px;pointer-events:none;opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:#0007;display:flex;align-items:center;justify-content:center;z-index:5}
+.card{background:var(--panel);border-radius:26px;padding:26px 30px;text-align:center;max-width:88vw}
+.card h2{font-size:40px;margin:0 0 6px}
+.card p{font-size:20px;color:var(--muted);margin:0 0 10px}
+@media (max-height:760px){.pad{grid-template-columns:repeat(3,68px);grid-template-rows:repeat(3,68px)}.pad button{font-size:32px}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Maze Munch">
+<meta name="theme-color" content="#e3f2cf">
+</head>
+<body>
+
+<div class="screen" id="start">
+  <h1 class="logo">Spotty's<span>Maze Munch</span></h1>
+  <canvas id="startBug" width="360" height="360"></canvas>
+  <p class="sub">Steer Spotty the ladybug through the maze and munch every mini bug. Watch out: the walls like to wiggle!</p>
+  <button class="big" id="play" type="button">Play</button>
+  <p class="sub" id="progress"></p>
+  <button class="small" id="sound" type="button">Sound: on</button>
+</div>
+
+<div class="screen" id="game" hidden>
+  <div class="top">
+    <button id="menu" type="button">Menu</button>
+    <span class="stat">Level <b id="lvl">1</b> · Bugs left <b id="left">0</b></span>
+  </div>
+  <canvas id="board"></canvas>
+  <div class="pad" id="pad">
+    <button class="up" data-d="0" type="button" aria-label="Up">▲</button>
+    <button class="left" data-d="3" type="button" aria-label="Left">◀</button>
+    <div class="mid">swipe<br>or tap</div>
+    <button class="right" data-d="1" type="button" aria-label="Right">▶</button>
+    <button class="down" data-d="2" type="button" aria-label="Down">▼</button>
+  </div>
+</div>
+<div class="toast" id="toast">The maze is wiggling!</div>
+
+<div class="overlay" id="done" hidden>
+  <div class="card">
+    <h2 id="doneTitle">Yum!</h2>
+    <p id="doneText"></p>
+    <button class="big" id="next" type="button">Next maze</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const DX=[0,1,0,-1],DY=[-1,0,1,0];               // up, right, down, left
+const THEMES=[
+  {name:'Meadow', floor:'#e3f2cf', wall:'#5aa846', edge:'#3f7d31'},
+  {name:'Ocean',  floor:'#d8ecf8', wall:'#3f7fc4', edge:'#2c5f97'},
+  {name:'Candy',  floor:'#fde4f0', wall:'#d77fc0', edge:'#a8569a'},
+  {name:'Sunset', floor:'#feead3', wall:'#f08a2c', edge:'#c0661a'},
+  {name:'Grape',  floor:'#ede4f8', wall:'#8e6cc9', edge:'#68499f'},
+  {name:'Mint',   floor:'#dbf5ee', wall:'#3fbfb0', edge:'#2a8e83'},
+  {name:'Honey',  floor:'#fff4cf', wall:'#e7a520', edge:'#b27c0f'},
+  {name:'Night',  floor:'#2f3348', wall:'#f5c531', edge:'#c79c17'},
+];
+const MINI=['#e0534a','#f5c531','#f08a2c','#d77fc0','#ff7a6b'];
+
+// ---------- save + sound ----------
+const get=(k,d)=>{try{const v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}};
+const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+let level=+get('smm-level',1)||1, soundOn=get('smm-sound','1')==='1';
+let AC=null;
+function beep(freq,dur,type,vol,slide){
+  if(!soundOn)return;
+  try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();
+    const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;
+    o.type=type||'square';o.frequency.setValueAtTime(freq,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+dur);
+    g.gain.setValueAtTime(vol||.06,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+.02)}catch(e){}
+}
+let chompHi=false;
+const sChomp=()=>{chompHi=!chompHi;beep(chompHi?520:390,.07,'square',.05,chompHi?700:300)};
+const sShift=()=>{beep(220,.18,'triangle',.08,160);setTimeout(()=>beep(180,.2,'triangle',.07,240),140)};
+const sWin=()=>[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.16,'triangle',.09),i*120));
+
+// ---------- maze ----------
+// wallR[y][x]: wall on the right of cell; wallD[y][x]: wall below cell. Outer border is always solid.
+let M=null;
+function rnd(n){return Math.floor(Math.random()*n)}
+function makeMaze(W,H){
+  const wallR=[],wallD=[],seen=[];
+  for(let y=0;y<H;y++){wallR.push(Array(W).fill(true));wallD.push(Array(W).fill(true));seen.push(Array(W).fill(false))}
+  const st=[[rnd(W),rnd(H)]];seen[st[0][1]][st[0][0]]=true;
+  while(st.length){
+    const [x,y]=st[st.length-1],opts=[];
+    for(let d=0;d<4;d++){const nx=x+DX[d],ny=y+DY[d];if(nx>=0&&ny>=0&&nx<W&&ny<H&&!seen[ny][nx])opts.push(d)}
+    if(!opts.length){st.pop();continue}
+    const d=opts[rnd(opts.length)],nx=x+DX[d],ny=y+DY[d];
+    setWall({wallR,wallD},x,y,d,false);seen[ny][nx]=true;st.push([nx,ny]);
+  }
+  const m={W,H,wallR,wallD};
+  // knock out extra walls so there are loops and fewer dead ends
+  const extra=Math.floor(W*H*.18);
+  for(let i=0;i<extra;i++){const w=randomWall(m,true);if(w)setWall(m,w.x,w.y,w.d,false)}
+  return m;
+}
+function setWall(m,x,y,d,on){
+  if(d===1)m.wallR[y][x]=on;else if(d===2)m.wallD[y][x]=on;
+  else if(d===3)m.wallR[y][x-1]=on;else m.wallD[y-1][x]=on;
+}
+function open(m,x,y,d){
+  const nx=x+DX[d],ny=y+DY[d];
+  if(nx<0||ny<0||nx>=m.W||ny>=m.H)return false;
+  if(d===1)return !m.wallR[y][x];if(d===2)return !m.wallD[y][x];
+  if(d===3)return !m.wallR[y][x-1];return !m.wallD[y-1][x];
+}
+// random inner wall (as cell + right/down) that is currently present (want=true) or absent
+function randomWall(m,want){
+  for(let k=0;k<60;k++){
+    const x=rnd(m.W),y=rnd(m.H),d=Math.random()<.5?1:2;
+    if(d===1&&x===m.W-1)continue;if(d===2&&y===m.H-1)continue;
+    const on=d===1?m.wallR[y][x]:m.wallD[y][x];
+    if(on===want)return {x,y,d};
+  }
+  return null;
+}
+function allConnected(m){
+  const seen=new Set(['0,0']),q=[[0,0]];
+  while(q.length){const [x,y]=q.pop();for(let d=0;d<4;d++)if(open(m,x,y,d)){const k=(x+DX[d])+','+(y+DY[d]);if(!seen.has(k)){seen.add(k);q.push([x+DX[d],y+DY[d]])}}}
+  return seen.size===m.W*m.H;
+}
+const touches=(w,cells)=>cells.some(([cx,cy])=>(w.x===cx&&w.y===cy)||(w.d===1&&w.x+1===cx&&w.y===cy)||(w.d===2&&w.x===cx&&w.y+1===cy));
+
+// ---------- game state ----------
+let G=null,cv=$('board'),ctx=cv.getContext('2d'),CELL=40,lastTheme=-1;
+function sizeFor(l){const W=Math.min(6+Math.ceil(l/2),11),H=Math.min(8+Math.ceil(l/2),15);return [W,H]}
+function newLevel(l){
+  level=l;put('smm-level',l);
+  const [W,H]=sizeFor(l);
+  let t;do{t=rnd(THEMES.length)}while(t===lastTheme);lastTheme=t;
+  const m=makeMaze(W,H);
+  const bugs=[];for(let y=0;y<H;y++){bugs.push([]);for(let x=0;x<W;x++)bugs[y].push({c:MINI[rnd(MINI.length)],ph:Math.random()*6.28,eaten:false})}
+  const sx=rnd(W),sy=H-1;bugs[sy][sx].eaten=true;
+  G={l,m,W,H,theme:THEMES[t],bugs,left:W*H-1,
+     p:{x:sx,y:sy,tx:sx,ty:sy,t:1,dir:0,want:-1,face:0,chomp:0},
+     speed:4.2+Math.min(l,10)*.12,
+     shiftEvery:Math.max(3.2,7.5-l*.45),shiftTimer:4,warn:null,warnT:0,parts:[],over:false};
+  $('lvl').textContent=l;$('left').textContent=G.left;
+  layout();
+}
+function layout(){
+  if(!G)return;
+  const padH=$('pad').offsetHeight+18, topH=56;
+  const availW=Math.min(innerWidth-24,760),availH=innerHeight-padH-topH-24;
+  CELL=Math.floor(Math.min(availW/G.W,availH/G.H));
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  cv.style.width=CELL*G.W+'px';cv.style.height=CELL*G.H+'px';
+  cv.width=CELL*G.W*dpr;cv.height=CELL*G.H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',layout);
+
+// ---------- wiggling walls ----------
+function planShift(){
+  const m=G.m,p=G.p,keep=[[p.x,p.y],[p.tx,p.ty]];
+  const n=1+Math.floor(G.l/3),plan=[];
+  for(let i=0;i<n;i++){
+    for(let k=0;k<30;k++){
+      const add=randomWall(m,false),rem=randomWall(m,true);
+      if(!add||!rem||touches(add,keep)||touches(rem,keep))continue;
+      setWall(m,add.x,add.y,add.d,true);setWall(m,rem.x,rem.y,rem.d,false);
+      const ok=allConnected(m);
+      setWall(m,add.x,add.y,add.d,false);setWall(m,rem.x,rem.y,rem.d,true);
+      if(ok){plan.push({add,rem});break}
+    }
+  }
+  if(plan.length){G.warn=plan;G.warnT=1.3;toast('The maze is wiggling!')}
+}
+function applyShift(){
+  const m=G.m,p=G.p,keep=[[p.x,p.y],[p.tx,p.ty]];
+  for(const {add,rem} of G.warn){
+    if(touches(add,keep)||touches(rem,keep))continue;
+    setWall(m,add.x,add.y,add.d,true);setWall(m,rem.x,rem.y,rem.d,false);
+    if(!allConnected(m)){setWall(m,add.x,add.y,add.d,false);setWall(m,rem.x,rem.y,rem.d,true)}
+  }
+  G.warn=null;sShift();
+}
+let toastT=0;
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove('show'),1300)}
+
+// ---------- update ----------
+function update(dt){
+  if(!G||G.over)return;
+  const p=G.p,m=G.m;
+  if(p.t>=1){
+    p.x=p.tx;p.y=p.ty;
+    const b=G.bugs[p.y][p.x];
+    if(!b.eaten){b.eaten=true;G.left--;$('left').textContent=G.left;sChomp();burst(p.x,p.y,b.c);
+      if(G.left<=0){win();return}}
+    // Spotty only walks while a direction is held. Holding a turn that is blocked keeps
+    // him going straight until the turn opens up; letting go stops him at the next square.
+    let d=-1;
+    if(p.want>=0&&open(m,p.x,p.y,p.want))d=p.want;
+    else if(p.want>=0&&p.dir>=0&&open(m,p.x,p.y,p.dir))d=p.dir;
+    if(d>=0){p.dir=d;p.face=d;p.tx=p.x+DX[d];p.ty=p.y+DY[d];p.t=0}
+  }
+  if(p.t<1){p.t=Math.min(1,p.t+dt*G.speed);p.chomp+=dt*14}
+  if(G.warn){G.warnT-=dt;if(G.warnT<=0)applyShift()}
+  else{G.shiftTimer-=dt;if(G.shiftTimer<=0){G.shiftTimer=G.shiftEvery;planShift()}}
+  G.parts=G.parts.filter(q=>(q.life-=dt)>0);G.parts.forEach(q=>{q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=200*dt});
+}
+function burst(x,y,c){for(let i=0;i<10;i++){const a=Math.random()*6.28,s=60+Math.random()*120;
+  G.parts.push({x:(x+.5)*CELL,y:(y+.5)*CELL,vx:Math.cos(a)*s,vy:Math.sin(a)*s-40,c:i%3?c:'#3b3b46',life:.5+Math.random()*.3,r:2+Math.random()*3})}}
+
+function win(){
+  G.over=true;sWin();
+  const next=G.l+1;put('smm-level',next);
+  $('doneTitle').textContent=['Yum!','Munch-tastic!','Spotty is full!','Crunchy!','Great munching!'][rnd(5)];
+  $('doneText').textContent=`You munched all ${G.W*G.H-1} mini bugs in the ${G.theme.name} maze!`;
+  setTimeout(()=>$('done').hidden=false,500);
+}
+
+// ---------- drawing ----------
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function drawLadybug(c,x,y,r,face,shell,mouth,blink){
+  c.save();c.translate(x,y);c.rotate(face*Math.PI/2);
+  // legs
+  c.strokeStyle='#26262e';c.lineWidth=Math.max(1.5,r*.12);c.lineCap='round';
+  for(const s of [-1,1])for(const k of [-.45,.05,.5]){c.beginPath();c.moveTo(s*r*.6,k*r);c.lineTo(s*r*1.05,k*r+r*.15*s*0+r*.1);c.stroke()}
+  // head
+  c.fillStyle='#26262e';c.beginPath();c.arc(0,-r*.72,r*.48,0,Math.PI*2);c.fill();
+  if(mouth>0){c.fillStyle='#ff9fb0';c.beginPath();c.moveTo(0,-r*.8);c.arc(0,-r*.8,r*.36,-Math.PI/2-mouth,-Math.PI/2+mouth);c.closePath();c.fill()}
+  // eyes
+  c.fillStyle='#fff';for(const s of [-1,1]){c.beginPath();c.arc(s*r*.22,-r*.86,r*.13,0,Math.PI*2);c.fill()}
+  if(!blink){c.fillStyle='#26262e';for(const s of [-1,1]){c.beginPath();c.arc(s*r*.22,-r*.9,r*.065,0,Math.PI*2);c.fill()}}
+  // shell
+  c.fillStyle=shell;c.beginPath();c.arc(0,r*.12,r*.82,0,Math.PI*2);c.fill();
+  c.strokeStyle='#26262e';c.lineWidth=Math.max(1,r*.08);c.beginPath();c.moveTo(0,-r*.62);c.lineTo(0,r*.92);c.stroke();
+  c.fillStyle='#26262e';
+  for(const [sx,sy,sr] of [[-.4,-.15,.17],[.4,-.15,.17],[-.45,.38,.15],[.45,.38,.15],[-.18,.68,.11],[.18,.68,.11]]){c.beginPath();c.arc(sx*r,sy*r+r*.12,sr*r,0,Math.PI*2);c.fill()}
+  // shine
+  c.fillStyle='#ffffff66';c.beginPath();c.ellipse(-r*.35,-r*.25,r*.16,r*.09,-.6,0,Math.PI*2);c.fill();
+  c.restore();
+}
+function draw(now){
+  if(!G)return;
+  const W=G.W,H=G.H,C=CELL,th=G.theme;
+  ctx.fillStyle=th.floor;ctx.fillRect(0,0,W*C,H*C);
+  // mini bugs
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const b=G.bugs[y][x];if(b.eaten)continue;
+    const wig=Math.sin(now/300+b.ph)*.35;drawLadybug(ctx,(x+.5)*C,(y+.5)*C,C*.17,wig/1.57,b.c,0,false)}
+  // walls
+  const lw=Math.max(4,C*.16),warnSet=new Set();
+  if(G.warn)G.warn.forEach(({add,rem})=>{warnSet.add(`${add.x},${add.y},${add.d}`);warnSet.add(`${rem.x},${rem.y},${rem.d}`)});
+  const flash=G.warn&&Math.floor(now/120)%2===0;
+  const seg=(x1,y1,x2,y2,col)=>{ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke()};
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const kR=`${x},${y},1`,kD=`${x},${y},2`;
+    if(x<W-1){if(G.m.wallR[y][x])seg((x+1)*C,y*C,(x+1)*C,(y+1)*C,warnSet.has(kR)&&flash?'#fff':th.wall);
+      else if(warnSet.has(kR)&&flash)seg((x+1)*C,y*C,(x+1)*C,(y+1)*C,th.wall+'66')}
+    if(y<H-1){if(G.m.wallD[y][x])seg(x*C,(y+1)*C,(x+1)*C,(y+1)*C,warnSet.has(kD)&&flash?'#fff':th.wall);
+      else if(warnSet.has(kD)&&flash)seg(x*C,(y+1)*C,(x+1)*C,(y+1)*C,th.wall+'66')}
+  }
+  ctx.strokeStyle=th.edge;ctx.lineWidth=lw*1.3;rr(lw*.65,lw*.65,W*C-lw*1.3,H*C-lw*1.3,C*.25);ctx.stroke();
+  // particles
+  G.parts.forEach(q=>{ctx.globalAlpha=Math.min(1,q.life*2);ctx.fillStyle=q.c;ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,6.28);ctx.fill()});ctx.globalAlpha=1;
+  // Spotty
+  const p=G.p,e=p.t<1?p.t:1,px=(p.x+(p.tx-p.x)*e+.5)*C,py=(p.y+(p.ty-p.y)*e+.5)*C;
+  const mouth=p.t<1?Math.abs(Math.sin(p.chomp))*.7:.15;
+  drawLadybug(ctx,px,py,C*.38,p.face,'#e0534a',mouth,(now%3200)<140);
+}
+let last=0;
+function frame(now){const dt=Math.min(.05,(now-(last||now))/1000);last=now;update(dt);draw(now);requestAnimationFrame(frame)}
+
+// ---------- input ----------
+function want(d){if(G)G.p.want=d}
+function release(d){if(G&&(d===undefined||G.p.want===d))G.p.want=-1}
+const KEYS={ArrowUp:0,KeyW:0,ArrowRight:1,KeyD:1,ArrowDown:2,KeyS:2,ArrowLeft:3,KeyA:3};
+addEventListener('keydown',e=>{const k=KEYS[e.code];if(k!==undefined){want(k);e.preventDefault()}});
+addEventListener('keyup',e=>{const k=KEYS[e.code];if(k!==undefined)release(k)});
+addEventListener('blur',()=>release());
+$('pad').querySelectorAll('button').forEach(b=>{
+  const d=+b.dataset.d;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();want(d);b.classList.add('on');if(AC&&AC.state==='suspended')AC.resume()});
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{b.classList.remove('on');release(d)}));
+});
+let sw=null;
+$('game').addEventListener('touchstart',e=>{if(e.target.closest('button'))return;const t=e.touches[0];sw={x:t.clientX,y:t.clientY}},{passive:true});
+$('game').addEventListener('touchmove',e=>{if(!sw)return;const t=e.touches[0],dx=t.clientX-sw.x,dy=t.clientY-sw.y;
+  if(Math.max(Math.abs(dx),Math.abs(dy))>24){want(Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0));sw={x:t.clientX,y:t.clientY}}},{passive:true});
+$('game').addEventListener('touchend',e=>{if(sw)release();sw=null});   // swipe-and-hold walks; lifting the finger stops
+// tap on the board: head toward the tapped spot
+cv.addEventListener('pointerdown',e=>{if(!G||e.pointerType==='touch')return;const r=cv.getBoundingClientRect(),p=G.p;
+  const dx=(e.clientX-r.left)/CELL-(p.x+.5),dy=(e.clientY-r.top)/CELL-(p.y+.5);want(Math.abs(dx)>Math.abs(dy)?(dx>0?1:3):(dy>0?2:0))});
+addEventListener('pointerup',e=>{if(e.pointerType!=='touch'&&e.target===cv)release()});
+
+// ---------- screens ----------
+function show(id){$('start').hidden=id!=='start';$('game').hidden=id!=='game'}
+function startScreen(){
+  if(G)G.over=true;show('start');$('done').hidden=true;
+  $('progress').textContent=level>1?`Continue at level ${level}`:'Munch every mini bug to clear the maze';
+  const c=$('startBug').getContext('2d');c.clearRect(0,0,360,360);drawLadybug(c,180,190,120,0,'#e0534a',.35,false);
+}
+$('play').onclick=()=>{beep(660,.08,'triangle',.06);show('game');newLevel(level)};
+$('next').onclick=()=>{$('done').hidden=true;newLevel(level+1)};
+$('menu').onclick=startScreen;
+$('sound').onclick=()=>{soundOn=!soundOn;put('smm-sound',soundOn?'1':'0');$('sound').textContent='Sound: '+(soundOn?'on':'off')};
+$('sound').textContent='Sound: '+(soundOn?'on':'off');
+startScreen();
+requestAnimationFrame(frame);
+</script>
+<script src="sw-register.js"></script>
+</body>
+</html>

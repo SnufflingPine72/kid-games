@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f3f6ee">
+<title>Pollen Quilt</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pollen Quilt">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pollen Quilt</h1>
+    <span class="meta" id="meta"></span>
+  </header>
+  <div class="quilt" id="quilt"></div>
+  <div class="label">Perch · bees here drop pollen into the dashed rows</div>
+  <div class="perch" id="perch"></div>
+  <div class="label">Hive lanes · tap the front bee to send it out</div>
+  <div class="lanes" id="lanes"></div>
+  <div class="bar">
+    <button id="shoo" type="button">Shoo mode: off (3 left)</button>
+    <button id="menu" type="button">Menu</button>
+    <button id="restart" type="button">Restart level</button>
+  </div>
+  <p class="hint">Each bee carries a different amount of pollen, shown by its number, and a big load holds its perch until every drop is used. The quilt fills from the bottom, two rows at a time. A perched bee only drops pollen on a dashed square of its own color. When every perch is full and nobody can drop anything, the hive jams. Shoo mode lets you tap a perched bee to send it to the back of a lane.</p>
+</div>
+<div class="overlay" id="overlay" hidden><div class="card" id="card"></div></div>
+<div class="start" id="start">
+  <div class="start-in" id="startMain">
+    <h1 class="logo">Pollen<span>Quilt</span></h1>
+    <div class="flyers" aria-hidden="true">
+      <div class="bee" style="--c:#e0534a;left:4%;top:-20px">3</div>
+      <div class="bee" style="--c:#5aa846;right:6%;top:10px;animation-delay:-1.2s">5</div>
+    </div>
+    <div class="mini" id="mini" aria-hidden="true"></div>
+    <p class="tag">Send bees out of the hive and let them stitch colored pollen into a picture, one square at a time.</p>
+    <button class="primary big" id="play" type="button">Play</button>
+    <button class="easy-btn" id="playEasy" type="button">🐝 Easy mode (little ones)</button>
+    <span class="small" id="progress"></span>
+  </div>
+  <div class="start-in" id="ask" hidden>
+    <h2 class="logo" style="font-size:30px">New to the hive?</h2>
+    <p class="tag">Would you like a quick tutorial before you start?</p>
+    <div class="row">
+      <button class="primary" id="tutYes" type="button">Yes, show me</button>
+      <button id="tutNo" type="button">No, start playing</button>
+    </div>
+  </div>
+  <div class="tut" id="tut" hidden>
+    <div class="steps" id="steps"></div>
+    <h2 id="tutTitle"></h2>
+    <div class="demo" id="tutDemo" aria-hidden="true"></div>
+    <p id="tutText"></p>
+    <div class="row">
+      <button id="tutBack" type="button">Back</button>
+      <button class="primary" id="tutNext" type="button">Next</button>
+    </div>
+    <button id="tutSkip" type="button" class="small" style="border:none;background:none">Skip tutorial</button>
+  </div>
+</div>
+<script src="game.js"></script>
+<script src="sw-register.js"></script>
+</body>
+</html>
